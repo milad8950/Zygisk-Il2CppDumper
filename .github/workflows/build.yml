@@ -12,7 +12,6 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    # استفاده از جاوا ۱۷ (سازگار با گریدل‌های جدید)
     - uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
@@ -21,7 +20,7 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
     
-    # نصب نسخه دقیق NDK r25c (که با کد این پروژه سازگار است)
+    # نصب NDK r25c و ذخیره آیدی برای استفاده بعدی
     - name: Setup NDK
       uses: nttld/setup-ndk@v1
       id: setup-ndk
@@ -29,25 +28,29 @@ jobs:
         ndk-version: r25c
 
     - name: Build Module
+      env:
+        # ⚠️ نکته کلیدی: اینجا زورکی مسیر NDK را عوض می‌کنیم به آن چیزی که دانلود کردیم
+        ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
       run: |
         chmod +x ./gradlew
         
-        # ۱. تنظیم دقیق مسیر SDK و NDK در فایل لوکال
-        echo "sdk.dir=$ANDROID_HOME" > local.properties
-        echo "ndk.dir=$ANDROID_NDK_HOME" >> local.properties
+        # حذف NDK های مزاحم پیش‌فرض (محکم کاری!)
+        sudo rm -rf /usr/local/lib/android/sdk/ndk/27.*
         
-        # ۲. حذف خط تعیین نسخه NDK از فایل بیلد (تا ارور تضاد نسخه ندهد)
-        # این دستور خط ndkVersion را پاک می‌کند تا هر نسخه‌ای که نصب کردیم (r25) را قبول کند
+        # تنظیم مسیرها
+        echo "sdk.dir=$ANDROID_HOME" > local.properties
+        echo "ndk.dir=${{ steps.setup-ndk.outputs.ndk-path }}" >> local.properties
+        
+        # حذف اجباری تنظیم نسخه از فایل‌های گریدل
         find . -name "build.gradle" -exec sed -i '/ndkVersion/d' {} +
         
-        # ۳. جایگزینی اسم پکیج بازی
+        # جایگزینی اسم پکیج
         sed -i 's/moduleDescription = "/moduleDescription = "(${{ github.event.inputs.package_name }}) /g' module.gradle
         sed -i "s/com.game.packagename/${{ github.event.inputs.package_name }}/g" module/src/main/cpp/game.h
         
-        # ۴. دستور بیلد
+        # شروع بیلد
         ./gradlew :module:assembleRelease
 
-    # آپلود فایل نهایی
     - uses: actions/upload-artifact@v4
       with:
         name: zygisk-il2cppdumper
