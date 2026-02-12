@@ -12,37 +12,34 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    # تنظیم نسخه جاوا (نسخه ۱۷ سازگارتر است)
+    # تنظیم جاوا
     - uses: actions/setup-java@v4
       with:
         distribution: 'temurin'
         java-version: '17'
 
-    # نصب دستی Android SDK و NDK (حل مشکل ارور)
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
-    
-    - name: Setup NDK
-      uses: nttld/setup-ndk@v1
-      with:
-        ndk-version: r25c
 
     - name: Build Module
       run: |
         chmod +x ./gradlew
         
-        # ساخت فایل local.properties برای شناسایی SDK
+        # 1. تنظیم مسیر SDK
         echo "sdk.dir=$ANDROID_HOME" > local.properties
-        echo "ndk.dir=$ANDROID_NDK_HOME" >> local.properties
         
-        # جایگزینی اسم پکیج
+        # 2. ترفند اصلی: پیدا کردن نسخه NDK سرور و جایگزینی آن در فایل بیلد
+        # این دستور نسخه 25 را در فایل گردل پیدا کرده و به 27 تغییر میدهد تا ارور ندهد
+        find . -name "build.gradle" -exec sed -i 's/25.2.9519653/27.3.13750724/g' {} +
+        
+        # 3. جایگزینی اسم پکیج بازی
         sed -i 's/moduleDescription = "/moduleDescription = "(${{ github.event.inputs.package_name }}) /g' module.gradle
         sed -i "s/com.game.packagename/${{ github.event.inputs.package_name }}/g" module/src/main/cpp/game.h
         
-        # دستور بیلد
+        # 4. دستور بیلد
         ./gradlew :module:assembleRelease
 
-    # آپلود فایل نهایی (نسخه جدید v4)
+    # آپلود فایل نهایی
     - uses: actions/upload-artifact@v4
       with:
         name: zygisk-il2cppdumper
